@@ -1,0 +1,124 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(ggplot2)
+library(pROC)
+```
+
+
+```{r}
+library(dplyr)
+library(caret)
+```
+
+```{r}
+file = 'diabetes.csv'
+df = read.csv(file, header = TRUE, stringsAsFactors = FALSE)
+head(df, 10)
+```
+
+
+```{r}
+trainIndex <- createDataPartition(df$Outcome, p = 0.7, list = FALSE, times = 1)
+train <- df[trainIndex, ]
+test <- df[-trainIndex, ]
+```
+
+```{r}
+head(train,10)
+head(test,10)
+
+```
+```{r}
+model = glm(data = train, Outcome ~ ., family = binomial(link = 'logit'))
+summary(model)
+```
+```{r}
+library(pROC)
+
+probabilities <- predict(model, newdata = test, type = "response")
+
+
+threshold_values <- seq(0.1, 0.9, by = 0.1)
+
+# Initialize vectors to store TPR and FPR
+tpr <- rep(NA, length(threshold_values))
+fpr <- rep(NA, length(threshold_values))
+
+
+for (i in 1:length(threshold_values)) {
+  threshold <- threshold_values[i]
+  predicted_class <- ifelse(probabilities > threshold, 1, 0)
+  tpr[i] <- sum(predicted_class == 1 & test$Outcome == 1) / sum(test$Outcome == 1)
+  fpr[i] <- sum(predicted_class == 1 & test$Outcome == 0) / sum(test$Outcome == 0)
+}
+
+# Plot the ROC curve
+roc_data <- data.frame(fpr, tpr)
+ggplot(roc_data, aes(x = fpr, y = tpr)) +
+  geom_line(color = 'red')  +
+  labs(title = "ROC Curve",
+       x = "False Positive Rate (FPR)",
+       y = "True Positive Rate (TPR)")
+
+
+```
+
+```{r}
+best_threshold_idx <- which.max(roc_data$tpr - roc_data$fpr)
+best_threshold <- threshold_values[best_threshold_idx]
+
+
+cat("Best Threshold: ", best_threshold, "\n")
+cat("TPR: ", roc_data$tpr[best_threshold_idx], "\n")
+cat("FPR: ", roc_data$fpr[best_threshold_idx], "\n")
+```
+```{r}
+
+probabilities <- predict(model, newdata = test, type = "response")
+threshold_values <- seq(0.1, 0.9, by = 0.1)
+
+precision <- rep(NA, length(threshold_values))
+recall <- rep(NA, length(threshold_values))
+
+# Iterate through threshold values
+for (i in 1:length(threshold_values)) {
+  threshold <- threshold_values[i]
+  predicted_class <- ifelse(probabilities > threshold, 1, 0)
+
+  TP <- sum((predicted_class == 1) & (test$Outcome == 1))
+  FP <- sum((predicted_class == 1) & (test$Outcome == 0))
+  FN <- sum((predicted_class == 0) & (test$Outcome == 1))
+ 
+  if (TP + FP > 0) {
+    precision[i] <- TP / (TP + FP)
+  } else {
+    precision[i] <- 0
+  }
+
+  if (TP + FN > 0) {
+    recall[i] <- TP / (TP + FN)
+  } else {
+    recall[i] <- 0
+  }
+}
+
+
+pr_data <- data.frame(recall, precision)
+ggplot(pr_data, aes(x = recall, y = precision)) +
+  geom_line() +
+  xlab("Recall") +
+  ylab("Precision") +
+  ggtitle("Precision-Recall Curve for Logistic Regression Model")
+```
+
+
+
+
+
+
